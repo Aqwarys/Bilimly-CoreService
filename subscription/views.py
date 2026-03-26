@@ -1,6 +1,6 @@
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework.views import APIView
 from drf_spectacular.utils import (
     extend_schema,
     OpenApiExample,
@@ -10,7 +10,7 @@ from drf_spectacular.utils import (
 from drf_spectacular.types import OpenApiTypes
 
 from .models import Tariff, Subscription
-from .serializers import TariffSerializer, SubscriptionSerializer
+from .serializers import TariffSerializer, SubscriptionSerializer, SubscriptionCreateSerializer
 
 
 class TariffListView(generics.ListAPIView):
@@ -193,3 +193,126 @@ class UserSubscriptionView(generics.RetrieveAPIView):
 
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
+
+
+class SubscriptionCreateView(APIView):
+    """
+    Authenticated endpoint to create a new subscription for the current user.
+
+    Creates a subscription using the selected tariff. User is taken from JWT token.
+    User can have only one active subscription.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        summary="Create subscription for current user",
+        description=(
+            "Creates a subscription using selected tariff. "
+            "User is taken from JWT token. "
+            "User can have only one active subscription."
+        ),
+        tags=["Subscription"],
+        request=SubscriptionCreateSerializer,
+        responses={
+            201: OpenApiResponse(
+                response=SubscriptionSerializer,
+                description="Subscription created successfully",
+                examples=[
+                    OpenApiExample(
+                        "Subscription created response",
+                        summary="Subscription created",
+                        description="Пример ответа при успешном создании подписки",
+                        value={
+                            "id": 1,
+                            "tariff": {
+                                "id": 1,
+                                "title": "Premium",
+                                "days_count": 30,
+                                "cost": "9.99"
+                            },
+                            "deadline": "2026-05-12T10:00:00Z",
+                            "created_at": "2026-04-12T10:00:00Z",
+                            "is_active": True
+                        },
+                        response_only=True
+                    )
+                ]
+            ),
+            400: OpenApiResponse(
+                response=OpenApiTypes.OBJECT,
+                description="Bad request - validation error",
+                examples=[
+                    OpenApiExample(
+                        "User already has active subscription",
+                        summary="User already has active subscription",
+                        description="Пример ответа когда у пользователя уже есть активная подписка",
+                        value={
+                            "detail": "User already has an active subscription"
+                        },
+                        response_only=True
+                    ),
+                    OpenApiExample(
+                        "Invalid tariff ID",
+                        summary="Invalid tariff ID",
+                        description="Пример ответа при неверном ID тарифа",
+                        value={
+                            "tariff_id": ["Invalid pk \"999\" - object does not exist."]
+                        },
+                        response_only=True
+                    )
+                ]
+            ),
+            401: OpenApiResponse(
+                response=OpenApiTypes.OBJECT,
+                description="Authentication required",
+                examples=[
+                    OpenApiExample(
+                        "Unauthorized response",
+                        summary="Authentication required",
+                        description="Пример ответа при отсутствии токена",
+                        value={
+                            "detail": "Authentication credentials were not provided."
+                        },
+                        response_only=True
+                    )
+                ]
+            )
+        },
+        examples=[
+            OpenApiExample(
+                "Create subscription request",
+                summary="Create subscription",
+                description="Пример запроса на создание подписки",
+                value={
+                    "tariff_id": 1
+                },
+                request_only=True
+            )
+        ]
+    )
+    def post(self, request, *args, **kwargs):
+        """
+        Create a new subscription for the authenticated user.
+
+        Args:
+            request: HTTP request with authenticated user and tariff_id
+
+        Returns:
+            Response: Created subscription or error
+        """
+        serializer = SubscriptionCreateSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+
+        if serializer.is_valid():
+            subscription = serializer.save()
+            # Return the created subscription with full details
+            subscription_serializer = SubscriptionSerializer(subscription)
+            return Response(
+                subscription_serializer.data,
+                status=status.HTTP_201_CREATED
+            )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

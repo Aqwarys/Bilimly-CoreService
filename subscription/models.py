@@ -19,7 +19,7 @@ class Tariff(models.Model):
     class Meta:
         verbose_name = "Tariff"
         verbose_name_plural = "Tariffs"
-        ordering = ['created_at']
+        ordering = ["created_at"]
 
     def __str__(self):
         return f"{self.title} ({self.days_count} days)"
@@ -36,22 +36,30 @@ class Subscription(models.Model):
     class Meta:
         verbose_name = "Subscription"
         verbose_name_plural = "Subscriptions"
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
 
     def clean(self):
         """Validate that user doesn't already have an active subscription."""
         if Subscription.objects.filter(user=self.user).exists():
             # Check if this is a new instance or updating existing
             if not self.pk:
-                raise ValidationError('User already has a subscription.')
+                raise ValidationError("User already has a subscription.")
 
     def save(self, *args, **kwargs):
         """Override save to automatically calculate deadline."""
-        self.full_clean()  # Run validation
+        is_new = self.pk is None
 
-        # Calculate deadline based on tariff days_count
-        if self.tariff:
-            self.deadline = self.created_at + timezone.timedelta(days=self.tariff.days_count)
+        # For new subscriptions, calculate deadline before saving
+        if is_new and self.tariff:
+            # Set deadline based on tariff days_count
+            # We'll use timezone.now() for created_at calculation since it's auto_now_add
+            current_time = timezone.now()
+            self.deadline = current_time + timezone.timedelta(
+                days=self.tariff.days_count
+            )
+
+        # Run validation after deadline is set
+        self.full_clean()
 
         super().save(*args, **kwargs)
 
