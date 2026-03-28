@@ -25,6 +25,7 @@ class Lesson(models.Model):
     )
     content = models.JSONField(
         default=dict,
+        blank=True,
         help_text="Lesson content in TipTap editor format (JSON)."
     )
     image = models.ImageField(
@@ -76,21 +77,28 @@ class Lesson(models.Model):
             raise ValidationError("Lesson must belong to a course.")
 
         # Validation: Cannot publish without content
-        if not self.is_draft and not self.content:
+        # Only validate content when publishing (is_draft=False)
+        # Allow empty content for drafts
+        if not self.is_draft and (self.content is None or self.content == {} or self.content == []):
             raise ValidationError("Cannot publish lesson without content.")
 
         super().clean()
 
     def save(self, *args, **kwargs):
-        self.full_clean()  # Run validation
-
         # Auto-increment priority if not set or creating new lesson
         if not self.pk or self.priority is None:
-            max_priority = Lesson.objects.filter(course=self.course).aggregate(
-                models.Max('priority')
-            )['priority__max'] or 0
-            self.priority = max_priority + 1
+            # Get the highest priority for this course and add 1
+            existing_priorities = set(
+                Lesson.objects.filter(course=self.course)
+                .values_list('priority', flat=True)
+            )
+            # Find the next available priority starting from 1
+            next_priority = 1
+            while next_priority in existing_priorities:
+                next_priority += 1
+            self.priority = next_priority
 
+        self.full_clean()  # Run validation after setting priority
         super().save(*args, **kwargs)
 
 

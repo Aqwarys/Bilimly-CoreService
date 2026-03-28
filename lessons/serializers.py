@@ -40,12 +40,13 @@ class LessonCreateSerializer(serializers.ModelSerializer):
         Create a new draft lesson.
         """
         course = validated_data.pop('course_id')
-        lesson = Lesson.objects.create(
+        lesson = Lesson(
             course=course,
             title=f"New Lesson {Lesson.objects.filter(course=course).count() + 1}",
             content={},
             is_draft=True
         )
+        lesson.save()  # This will trigger the model's save method which handles priority auto-increment
         return lesson
 
 
