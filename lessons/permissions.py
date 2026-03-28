@@ -18,3 +18,16 @@ class IsAuthenticated(BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         return True
+
+
+class IsAdminUserOnly(BasePermission):
+    """
+    Allows access only to admin users (is_staff == True).
+
+    Restricts access to admin-only endpoints for lesson management.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.is_staff

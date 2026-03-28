@@ -15,7 +15,7 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path
-from .views import LessonCreateView, LessonImageView, LessonPublishView
+from .views import LessonCreateView, LessonImageView, LessonPublishView, LessonUpdateView
 
 app_name = 'lessons'
 
@@ -28,4 +28,7 @@ urlpatterns = [
 
     # Publish lesson
     path('<int:lesson_id>/publish/', LessonPublishView.as_view(), name='lesson-publish'),
+
+    # Update lesson (PUT and PATCH)
+    path('<int:lesson_id>/', LessonUpdateView.as_view(), name='lesson-update'),
 ]

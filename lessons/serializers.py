@@ -76,7 +76,7 @@ class LessonSerializer(serializers.ModelSerializer):
             'auto_test',
             'priority'
         ]
-        read_only_fields = ['id', 'course_name']
+        read_only_fields = ['id', 'course', 'course_name']
 
 
 class LessonImageSerializer(serializers.ModelSerializer):
