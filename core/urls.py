@@ -14,6 +14,7 @@ api = [
     path("users/", include("users.urls")),
     path("subscription/", include("subscription.urls")),
     path("courses/", include("courses.urls")),
+    path("lessons/", include("lessons.urls")),
 ]
 
 urlpatterns = [

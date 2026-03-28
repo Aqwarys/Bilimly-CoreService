@@ -9,9 +9,10 @@ from drf_spectacular.utils import (
 )
 from drf_spectacular.types import OpenApiTypes
 from .models import Category, Course
-from .serializers import CategorySerializer, CourseDetailSerializer
+from .serializers import CategorySerializer, CourseDetailSerializer, BaseLessonSerializer
 from .permissions import HasActiveSubscription
 from .pagination import CategoryPagination
+from lessons.models import Lesson
 
 
 @extend_schema(
@@ -180,3 +181,82 @@ class CourseDetailView(RetrieveAPIView):
     def get_object(self):
         slug = self.kwargs.get("slug")
         return get_object_or_404(Course, slug=slug)
+
+
+@extend_schema(
+    tags=["Courses"],
+    summary="Get lessons by course",
+    description="Returns all lessons for a specific course, ordered by priority.",
+    parameters=[
+        OpenApiParameter(
+            name="slug",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.PATH,
+            description="Unique slug of the course"
+        )
+    ],
+    responses={
+        200: OpenApiResponse(
+            response=BaseLessonSerializer(many=True),
+            description="Lessons retrieved successfully",
+            examples=[
+                OpenApiExample(
+                    "Success Response",
+                    summary="Lessons list",
+                    value=[
+                        {
+                            "id": 10,
+                            "course": 1,
+                            "course_name": "Python Programming",
+                            "title": "Introduction to Python",
+                            "content": {},
+                            "image": None,
+                            "is_draft": False,
+                            "auto_test": False,
+                            "priority": 1,
+                            "created_at": "2023-12-01T10:00:00Z",
+                            "updated_at": "2023-12-01T10:30:00Z"
+                        },
+                        {
+                            "id": 11,
+                            "course": 1,
+                            "course_name": "Python Programming",
+                            "title": "Variables and Data Types",
+                            "content": {},
+                            "image": None,
+                            "is_draft": True,
+                            "auto_test": False,
+                            "priority": 2,
+                            "created_at": "2023-12-01T10:15:00Z",
+                            "updated_at": "2023-12-01T10:15:00Z"
+                        }
+                    ]
+                )
+            ]
+        ),
+        404: OpenApiResponse(
+            description="Not Found",
+            examples=[
+                OpenApiExample(
+                    "Course Not Found",
+                    summary="Course does not exist",
+                    value={"detail": "Not found."}
+                )
+            ]
+        ),
+        401: OpenApiResponse(description="Unauthorized")
+    }
+)
+class CourseLessonsListView(ListAPIView):
+    """
+    Get lessons by course.
+
+    Returns all lessons for a specific course, ordered by priority.
+    """
+    serializer_class = BaseLessonSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        course_slug = self.kwargs['slug']
+        course = get_object_or_404(Course, slug=course_slug)
+        return Lesson.objects.filter(course=course).select_related('course').order_by('priority')

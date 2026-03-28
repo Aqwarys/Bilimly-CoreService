@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from .models import Category, Course
+from lessons.models import Lesson
+from lessons.serializers import LessonSerializer as BaseLessonSerializer
 
 
 class CourseShortSerializer(serializers.ModelSerializer):
