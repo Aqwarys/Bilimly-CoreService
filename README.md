@@ -268,18 +268,6 @@ http://127.0.0.1:8000/admin/
 
 ## 🔒 Permissions
 
-### Access Levels
-
-#### Public Endpoints
-- `/api/tariffs/` - View available subscription plans
-- `/api/courses/categories/` - Browse course categories
-- `/api/courses/categories/{slug}/` - View category details
-
-#### Authenticated Endpoints
-- `/api/subscription/me/` - View user's subscription
-- `/api/courses/` - Browse all courses
-- `/api/courses/{slug}/` - View course details (subscription required for premium content)
-
 #### Protected Operations
 - Subscription creation requires authentication
 - Content access is validated against active subscriptions
