@@ -22,6 +22,7 @@ ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 # Application definition
 
 INSTALLED_APPS = [
+    "corsheaders",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -38,6 +39,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -46,6 +48,13 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     'whitenoise.middleware.WhiteNoiseMiddleware',
+]
+CORS_ALLOW_ALL_ORIGINS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://projectx-api-718606133437.us-central1.run.app",
+    "https://bilimly.kz",
+    "https://www.bilimly.kz",
 ]
 
 ROOT_URLCONF = "core.urls"
