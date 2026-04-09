@@ -161,6 +161,7 @@ class LessonPublishView(APIView):
     Marks a lesson as published and removes any unused images.
     """
     permission_classes = [IsAdminUserOnly]
+    serializer_class = None
 
     @extend_schema(
         summary="Publish lesson",
@@ -234,6 +235,7 @@ class LessonUpdateView(APIView):
     Only admin users can update lessons.
     """
     permission_classes = [IsAdminUserOnly]
+    serializer_class = LessonSerializer
 
     @extend_schema(
         summary="Update lesson",
