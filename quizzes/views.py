@@ -15,13 +15,21 @@ from rest_framework.views import APIView
 from .models import Quiz
 from .permissions import IsAdminUserOnly
 from .serializers import (
+    QuestionBulkCreateSerializer,
+    QuestionCRUDSerializer,
+    QuestionFilterSerializer,
     QuizCheckResultSerializer,
     QuizCheckSerializer,
     QuizDetailSerializer,
     QuizEditSerializer,
     QuizSerializer,
 )
-from .services import check_quiz_answers, update_quiz_with_questions
+from .services import (
+    bulk_create_questions,
+    check_quiz_answers,
+    get_filtered_questions,
+    update_quiz_with_questions,
+)
 
 
 class QuizAccessMixin:
@@ -331,3 +339,186 @@ class QuizCheckView(QuizAccessMixin, APIView):
 
         result = check_quiz_answers(quiz=quiz, answers=serializer.validated_data["answers"])
         return Response(result, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["Quizzes"],
+    summary="List questions with filters",
+    description=(
+        "Returns all questions with optional filters. "
+        "Use query params to filter by quiz, question type, and score range."
+    ),
+    parameters=[
+        OpenApiParameter("quiz_id", OpenApiTypes.INT, OpenApiParameter.QUERY, description="Filter by quiz ID"),
+        OpenApiParameter(
+            "type",
+            OpenApiTypes.STR,
+            OpenApiParameter.QUERY,
+            description="Filter by question type: single, multiple, ordering",
+        ),
+        OpenApiParameter("min_score", OpenApiTypes.INT, OpenApiParameter.QUERY, description="Minimum score (1-5)"),
+        OpenApiParameter("max_score", OpenApiTypes.INT, OpenApiParameter.QUERY, description="Maximum score (1-5)"),
+    ],
+    responses={
+        200: OpenApiResponse(
+            response=QuestionCRUDSerializer(many=True),
+            description="Filtered question list.",
+            examples=[
+                OpenApiExample(
+                    "Questions List",
+                    value=[
+                        {
+                            "id": 12,
+                            "quiz": 1,
+                            "type": "single",
+                            "content": {"type": "doc", "content": []},
+                            "image": None,
+                            "options": ["A", "B", "C"],
+                            "correct": [1],
+                            "score": 2,
+                            "explanation": "B is the correct answer.",
+                        }
+                    ],
+                )
+            ],
+        ),
+        400: OpenApiResponse(description="Bad Request"),
+    },
+)
+class QuestionListView(APIView):
+    permission_classes = [IsAdminUserOnly]
+
+    def get(self, request):
+        filters = QuestionFilterSerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+        data = filters.validated_data
+        queryset = get_filtered_questions(
+            quiz_id=data.get("quiz_id"),
+            question_type=data.get("type"),
+            min_score=data.get("min_score"),
+            max_score=data.get("max_score"),
+        )
+        return Response(QuestionCRUDSerializer(queryset, many=True).data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["Quizzes"],
+    summary="Create multiple questions",
+    description=(
+        "Creates several questions in a single request for a specific quiz. "
+        "Only admin users can create questions."
+    ),
+    request=QuestionBulkCreateSerializer,
+    responses={
+        201: OpenApiResponse(
+            response=QuestionCRUDSerializer(many=True),
+            description="Questions created successfully.",
+            examples=[
+                OpenApiExample(
+                    "Bulk Create Questions",
+                    value=[
+                        {
+                            "id": 50,
+                            "quiz": 1,
+                            "type": "single",
+                            "content": {"type": "doc", "content": []},
+                            "image": None,
+                            "options": ["A", "B", "C"],
+                            "correct": [1],
+                            "score": 2,
+                            "explanation": "B is correct.",
+                        },
+                        {
+                            "id": 51,
+                            "quiz": 1,
+                            "type": "multiple",
+                            "content": {"type": "doc", "content": []},
+                            "image": None,
+                            "options": ["X", "Y", "Z"],
+                            "correct": [0, 2],
+                            "score": 3,
+                            "explanation": "X and Z are correct.",
+                        },
+                    ],
+                )
+            ],
+        ),
+        400: OpenApiResponse(description="Bad Request"),
+        401: OpenApiResponse(description="Unauthorized"),
+        403: OpenApiResponse(description="Forbidden"),
+    },
+)
+class QuestionBulkCreateView(APIView):
+    permission_classes = [IsAdminUserOnly]
+
+    def post(self, request):
+        serializer = QuestionBulkCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        quiz = serializer.validated_data["quiz"]
+        questions_data = serializer.validated_data["questions"]
+
+        created = bulk_create_questions(quiz=quiz, questions_data=questions_data)
+        return Response(QuestionCRUDSerializer(created, many=True).data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(
+    tags=["Quizzes"],
+    summary="Get question",
+    description="Returns one question by ID. Admin only.",
+    parameters=[
+        OpenApiParameter("id", OpenApiTypes.INT, OpenApiParameter.PATH, description="Question ID", required=True)
+    ],
+    responses={
+        200: OpenApiResponse(response=QuestionCRUDSerializer, description="Question details."),
+        401: OpenApiResponse(description="Unauthorized"),
+        403: OpenApiResponse(description="Forbidden"),
+        404: OpenApiResponse(description="Not Found"),
+    },
+)
+class QuestionDetailView(APIView):
+    permission_classes = [IsAdminUserOnly]
+
+    def get_object(self, question_id):
+        from .models import Question
+
+        return get_object_or_404(Question.objects.select_related("quiz"), id=question_id)
+
+    def get(self, request, id):
+        question = self.get_object(id)
+        return Response(QuestionCRUDSerializer(question).data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=["Quizzes"],
+        summary="Update question",
+        description="Updates an existing question by ID. Admin only.",
+        request=QuestionCRUDSerializer,
+        responses={
+            200: OpenApiResponse(response=QuestionCRUDSerializer, description="Question updated successfully."),
+            400: OpenApiResponse(description="Bad Request"),
+            401: OpenApiResponse(description="Unauthorized"),
+            403: OpenApiResponse(description="Forbidden"),
+            404: OpenApiResponse(description="Not Found"),
+        },
+    )
+    def put(self, request, id):
+        question = self.get_object(id)
+        serializer = QuestionCRUDSerializer(question, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=["Quizzes"],
+        summary="Delete question",
+        description="Deletes an existing question by ID. Admin only.",
+        responses={
+            204: OpenApiResponse(description="Question deleted successfully."),
+            401: OpenApiResponse(description="Unauthorized"),
+            403: OpenApiResponse(description="Forbidden"),
+            404: OpenApiResponse(description="Not Found"),
+        },
+    )
+    def delete(self, request, id):
+        question = self.get_object(id)
+        question.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

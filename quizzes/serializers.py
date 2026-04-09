@@ -153,3 +153,66 @@ class QuizCheckResultSerializer(serializers.Serializer):
     score = serializers.IntegerField()
     explanation = serializers.CharField()
     correct_answer = serializers.ListField(child=serializers.IntegerField())
+
+
+class QuestionCRUDSerializer(serializers.ModelSerializer):
+    quiz = serializers.PrimaryKeyRelatedField(queryset=Quiz.objects.all())
+
+    class Meta:
+        model = Question
+        fields = [
+            "id",
+            "quiz",
+            "type",
+            "content",
+            "image",
+            "options",
+            "correct",
+            "score",
+            "explanation",
+        ]
+
+    def validate(self, attrs):
+        options = attrs.get("options", getattr(self.instance, "options", []))
+        correct = attrs.get("correct", getattr(self.instance, "correct", []))
+        q_type = attrs.get("type", getattr(self.instance, "type", None))
+
+        if not isinstance(options, list):
+            raise serializers.ValidationError({"options": "Options must be a list."})
+        if len(options) > 15:
+            raise serializers.ValidationError({"options": "Options length must be less than or equal to 15."})
+
+        if not isinstance(correct, list) or not all(isinstance(i, int) for i in correct):
+            raise serializers.ValidationError({"correct": "Correct must be a list of integer indexes."})
+        if any(i < 0 or i >= len(options) for i in correct):
+            raise serializers.ValidationError({"correct": "Correct indexes must exist in options."})
+
+        if q_type == Question.QuestionType.SINGLE and len(correct) != 1:
+            raise serializers.ValidationError({"correct": "Single question must have exactly one correct index."})
+        if q_type == Question.QuestionType.MULTIPLE and len(correct) < 1:
+            raise serializers.ValidationError({"correct": "Multiple question must have at least one correct index."})
+        if q_type == Question.QuestionType.ORDERING and correct != list(range(len(options))):
+            raise serializers.ValidationError(
+                {"correct": "Ordering question must contain all option indexes in exact order."}
+            )
+
+        return attrs
+
+
+class QuestionBulkCreateSerializer(serializers.Serializer):
+    quiz_id = serializers.PrimaryKeyRelatedField(source="quiz", queryset=Quiz.objects.all())
+    questions = QuestionSerializer(many=True)
+
+
+class QuestionFilterSerializer(serializers.Serializer):
+    quiz_id = serializers.IntegerField(required=False)
+    type = serializers.ChoiceField(choices=Question.QuestionType.choices, required=False)
+    min_score = serializers.IntegerField(required=False, min_value=1, max_value=5)
+    max_score = serializers.IntegerField(required=False, min_value=1, max_value=5)
+
+    def validate(self, attrs):
+        min_score = attrs.get("min_score")
+        max_score = attrs.get("max_score")
+        if min_score is not None and max_score is not None and min_score > max_score:
+            raise serializers.ValidationError({"max_score": "max_score must be greater than or equal to min_score."})
+        return attrs

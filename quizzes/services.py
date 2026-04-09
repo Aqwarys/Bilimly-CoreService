@@ -1,6 +1,7 @@
 from typing import Any
 
 from django.db import transaction
+from django.db.models import QuerySet
 from rest_framework.exceptions import ValidationError
 
 from .models import Question, Quiz
@@ -93,3 +94,35 @@ def check_quiz_answers(quiz: Quiz, answers: list[dict[str, Any]]) -> list[dict[s
         )
 
     return response
+
+
+@transaction.atomic
+def bulk_create_questions(quiz: Quiz, questions_data: list[dict[str, Any]]) -> list[Question]:
+    created_questions: list[Question] = []
+    for payload in questions_data:
+        question = Question(quiz=quiz, **payload)
+        question.full_clean()
+        question.save()
+        created_questions.append(question)
+    return created_questions
+
+
+def get_filtered_questions(
+    *,
+    quiz_id: int | None = None,
+    question_type: str | None = None,
+    min_score: int | None = None,
+    max_score: int | None = None,
+) -> QuerySet[Question]:
+    queryset = Question.objects.select_related("quiz").all()
+
+    if quiz_id is not None:
+        queryset = queryset.filter(quiz_id=quiz_id)
+    if question_type:
+        queryset = queryset.filter(type=question_type)
+    if min_score is not None:
+        queryset = queryset.filter(score__gte=min_score)
+    if max_score is not None:
+        queryset = queryset.filter(score__lte=max_score)
+
+    return queryset.order_by("quiz_id", "id")
