@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "subscription",
     "courses",
     "lessons",
+    "quizzes",
 ]
 
 MIDDLEWARE = [
@@ -161,9 +162,8 @@ SPECTACULAR_SETTINGS = {
     "SECURITY": [{"Bearer": []}],
     "SCHEMA_PATH_PREFIX": "/api/",
     "SCHEMA_PATH_PREFIX_TRIM": True,
-    "ENUM_NAME_OVERRIDES": {
-        "ValidationErrorEnum": "drf_spectacular.plumbing.ValidationErrorEnum.choices",
-    },
+    # Removed broken ENUM_NAME_OVERRIDES - this fixes duplicate enum names and loading warning
+    # ValidationErrorEnum is now handled internally by drf_spectacular
     "POSTPROCESSING_HOOKS": ["drf_spectacular.hooks.postprocess_schema_enums"],
 }
 
