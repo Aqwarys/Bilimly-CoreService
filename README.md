@@ -1,10 +1,10 @@
-# Bilimly API
+# Qqumi API
 
 A comprehensive Django REST Framework backend API for an educational platform with subscription-based access to premium content.
 
 ## 📖 Project Overview
 
-Bilimly is a backend API platform designed for educational content management. The system provides:
+Qqumi is a backend API platform designed for educational content management. The system provides:
 
 - **Course Management**: Organize educational content into categories and courses
 - **Subscription System**: Manage user subscriptions with different tariff plans

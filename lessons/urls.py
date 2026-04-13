@@ -15,13 +15,14 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path
-from .views import LessonCreateView, LessonImageView, LessonPublishView, LessonUpdateView
+from .views import LessonCreateView, LessonImageView, LessonPublishView, LessonQuizView, LessonUpdateView
 
 app_name = 'lessons'
 
 urlpatterns = [
     # Create draft lesson
     path('', LessonCreateView.as_view(), name='lesson-create'),
+    path('<int:id>/quiz/', LessonQuizView.as_view(), name='lesson-quiz'),
 
     # Upload image for lesson
     path('<int:lesson_id>/upload-image/', LessonImageView.as_view(), name='lesson-upload-image'),
