@@ -146,6 +146,14 @@ class QuizAnswerItemSerializer(serializers.Serializer):
 class QuizCheckSerializer(serializers.Serializer):
     answers = QuizAnswerItemSerializer(many=True)
 
+    def validate_answers(self, value):
+        if not value:
+            raise serializers.ValidationError("Answers list cannot be empty.")
+        question_ids = [item["question_id"] for item in value]
+        if len(question_ids) != len(set(question_ids)):
+            raise serializers.ValidationError("Duplicate question answers are not allowed.")
+        return value
+
 
 class QuizCheckResultSerializer(serializers.Serializer):
     question_id = serializers.IntegerField()
@@ -153,6 +161,11 @@ class QuizCheckResultSerializer(serializers.Serializer):
     score = serializers.IntegerField()
     explanation = serializers.CharField()
     correct_answer = serializers.ListField(child=serializers.IntegerField())
+
+
+class QuizDetailWithAttemptSerializer(serializers.Serializer):
+    quiz = QuizDetailSerializer()
+    user_attempt = serializers.DictField(required=False)
 
 
 class QuestionCRUDSerializer(serializers.ModelSerializer):

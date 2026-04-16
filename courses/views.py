@@ -1,5 +1,7 @@
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import (
     extend_schema,
@@ -13,6 +15,10 @@ from .serializers import CategorySerializer, CourseDetailSerializer, BaseLessonS
 from .permissions import HasActiveSubscription
 from .pagination import CategoryPagination
 from lessons.models import Lesson
+from quizzes.serializers import QuizDetailWithAttemptSerializer
+from quizzes.views import QuizAccessMixin
+from quiz_statistics.services import get_quiz_by_course_id
+from quiz_statistics.views import UserAttemptPayloadMixin
 
 
 @extend_schema(
@@ -260,3 +266,55 @@ class CourseLessonsListView(ListAPIView):
         course_slug = self.kwargs['slug']
         course = get_object_or_404(Course, slug=course_slug)
         return Lesson.objects.filter(course=course).select_related('course').order_by('priority')
+
+
+@extend_schema(
+    tags=["Courses"],
+    summary="Get quiz by course ID",
+    description=(
+        "Returns quiz attached to the course ID. Conditional response: always returns `quiz`, "
+        "and also returns `user_attempt` if authenticated user has previous attempts."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="id",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.PATH,
+            description="Course ID",
+            required=True,
+        )
+    ],
+    responses={
+        200: OpenApiResponse(
+            response=QuizDetailWithAttemptSerializer,
+            description="Quiz retrieved successfully.",
+            examples=[
+                OpenApiExample(
+                    "Course Quiz Response",
+                    value={
+                        "quiz": {
+                            "id": 1,
+                            "course": 2,
+                            "lesson": None,
+                            "title": "Python Basics Quiz",
+                            "description": "Module check",
+                            "is_free": True,
+                            "cost": None,
+                            "image": None,
+                            "questions": [],
+                        }
+                    },
+                )
+            ],
+        ),
+        404: OpenApiResponse(description="Quiz not found for this course."),
+    },
+)
+class CourseQuizView(UserAttemptPayloadMixin, APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, id):
+        quiz = get_quiz_by_course_id(course_id=id)
+        QuizAccessMixin().ensure_pass_access(request, quiz)
+        payload = self.get_conditional_quiz_response(request=request, quiz=quiz)
+        return Response(payload, status=200)

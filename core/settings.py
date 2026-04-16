@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "courses",
     "lessons",
     "quizzes",
+    "quiz_statistics.apps.QuizStatisticsConfig",
 ]
 
 MIDDLEWARE = [
@@ -144,8 +145,8 @@ SIMPLE_JWT = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Bilimly API",
-    "DESCRIPTION": "Документация API для взаимодействия с Bilimly образовательной платформой",
+    "TITLE": "Qqumi API",
+    "DESCRIPTION": "Документация API для взаимодействия с Qqumi образовательной платформой",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_PATCH": True,

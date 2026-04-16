@@ -8,7 +8,7 @@ from drf_spectacular.utils import (
 )
 from rest_framework import status
 from rest_framework.exceptions import NotAuthenticated, PermissionDenied
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -21,6 +21,7 @@ from .serializers import (
     QuizCheckResultSerializer,
     QuizCheckSerializer,
     QuizDetailSerializer,
+    QuizDetailWithAttemptSerializer,
     QuizEditSerializer,
     QuizSerializer,
 )
@@ -105,32 +106,69 @@ class QuizCreateView(APIView):
     ],
     responses={
         200: OpenApiResponse(
-            response=QuizDetailSerializer,
-            description="Quiz details for passing.",
+            response=QuizDetailWithAttemptSerializer,
+            description=(
+                "Conditional response. Always includes `quiz`. Includes `user_attempt` "
+                "only for authenticated users with attempt history."
+            ),
             examples=[
                 OpenApiExample(
-                    "Quiz Passing",
+                    "Quiz Passing (No Attempt)",
                     value={
-                        "id": 1,
-                        "course": 1,
-                        "lesson": None,
-                        "title": "Python Basics Quiz",
-                        "description": "Answer questions to complete module.",
-                        "is_free": True,
-                        "cost": None,
-                        "image": None,
-                        "questions": [
-                            {
-                                "id": 10,
-                                "type": "single",
-                                "content": {"type": "doc", "content": []},
-                                "image": None,
-                                "options": ["A", "B", "C"],
-                                "score": 1,
-                            }
-                        ],
+                        "quiz": {
+                            "id": 1,
+                            "course": 1,
+                            "lesson": None,
+                            "title": "Python Basics Quiz",
+                            "description": "Answer questions to complete module.",
+                            "is_free": True,
+                            "cost": None,
+                            "image": None,
+                            "questions": [
+                                {
+                                    "id": 10,
+                                    "type": "single",
+                                    "content": {"type": "doc", "content": []},
+                                    "image": None,
+                                    "options": ["A", "B", "C"],
+                                    "score": 1,
+                                }
+                            ],
+                        }
                     },
-                )
+                ),
+                OpenApiExample(
+                    "Quiz Passing (With Attempt)",
+                    value={
+                        "quiz": {
+                            "id": 1,
+                            "course": 1,
+                            "lesson": None,
+                            "title": "Python Basics Quiz",
+                            "description": "Answer questions to complete module.",
+                            "is_free": True,
+                            "cost": None,
+                            "image": None,
+                            "questions": [],
+                        },
+                        "user_attempt": {
+                            "id": 5,
+                            "quiz": 1,
+                            "score": 5,
+                            "is_completed": True,
+                            "created_at": "2026-04-10T10:00:00Z",
+                            "updated_at": "2026-04-10T10:00:00Z",
+                            "answers": [
+                                {
+                                    "question_id": 10,
+                                    "selected": [1],
+                                    "is_correct": True,
+                                    "correct_answer": [1],
+                                }
+                            ],
+                        },
+                    },
+                ),
             ],
         ),
         401: OpenApiResponse(description="Unauthorized"),
@@ -149,7 +187,10 @@ class QuizDetailView(QuizAccessMixin, APIView):
     def get(self, request, id):
         quiz = self.get_quiz(id)
         self.ensure_pass_access(request, quiz)
-        return Response(QuizDetailSerializer(quiz).data, status=status.HTTP_200_OK)
+        from quiz_statistics.views import UserAttemptPayloadMixin
+
+        payload = UserAttemptPayloadMixin().get_conditional_quiz_response(request=request, quiz=quiz)
+        return Response(payload, status=status.HTTP_200_OK)
 
     @extend_schema(
         tags=["Quizzes"],
@@ -336,9 +377,46 @@ class QuizCheckView(QuizAccessMixin, APIView):
 
         serializer = QuizCheckSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        answers = serializer.validated_data["answers"]
 
-        result = check_quiz_answers(quiz=quiz, answers=serializer.validated_data["answers"])
+        result = check_quiz_answers(quiz=quiz, answers=answers)
+        if request.user and request.user.is_authenticated:
+            from quiz_statistics.services import create_attempt
+
+            create_attempt(user=request.user, quiz=quiz, answers=answers, results=result)
         return Response(result, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["Quizzes"],
+    summary="Delete my attempts for a quiz",
+    description=(
+        "Deletes all attempts for the authenticated user by quiz. "
+        "Returns 404 if no attempts exist."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="quiz_id",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.PATH,
+            description="Quiz ID",
+            required=True,
+        )
+    ],
+    responses={
+        204: OpenApiResponse(description="Attempts deleted successfully."),
+        401: OpenApiResponse(description="Unauthorized"),
+        404: OpenApiResponse(description="No attempts found for this quiz."),
+    },
+)
+class UserQuizAttemptDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, quiz_id):
+        from quiz_statistics.services import delete_user_attempt
+
+        delete_user_attempt(user=request.user, quiz_id=quiz_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema(
