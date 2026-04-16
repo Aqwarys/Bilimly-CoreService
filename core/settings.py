@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "lessons",
     "quizzes",
     "quiz_statistics.apps.QuizStatisticsConfig",
+    "storages",
 ]
 
 MIDDLEWARE = [
@@ -172,8 +173,20 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
+GS_BUCKET_NAME = "bilimly-projectx-media"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
+        "OPTIONS": {
+            "bucket_name": GS_BUCKET_NAME,
+        },
+    },
+}
+
+
 # Media Files Settings
-MEDIA_URL = "/media/"
+MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 # Default primary key field type
