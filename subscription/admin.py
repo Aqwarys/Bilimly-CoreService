@@ -45,6 +45,8 @@ class SubscriptionAdmin(admin.ModelAdmin):
 
     def is_active(self, obj):
         """Display if subscription is active."""
+        if obj is None:
+            return False
         return obj.is_active
     is_active.boolean = True
     is_active.short_description = 'Active'

@@ -66,6 +66,8 @@ class Subscription(models.Model):
     @property
     def is_active(self):
         """Check if subscription is currently active."""
+        if self.deadline is None:
+            return False
         return self.deadline > timezone.now()
 
     def __str__(self):
