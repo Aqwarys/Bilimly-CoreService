@@ -7,6 +7,7 @@ from django.db.models import Prefetch, QuerySet
 from rest_framework.exceptions import ValidationError
 
 from .models import Module, Problem, Subject
+from .serializers import ProblemPublicSerializer
 
 
 def distribute_questions(total_questions: int, module_count: int) -> list[int]:
@@ -100,13 +101,14 @@ def build_exam(subject: Subject) -> dict[str, Any]:
             )
         )
         problems = shuffle_questions(problems)
+        problems_payload = ProblemPublicSerializer(problems, many=True).data
 
         response_subjects.append(
             {
                 "name": exam_subject.name,
                 "total_problem": len(problems),
                 "max_score": exam_subject.max_score,
-                "problems": problems,
+                "problems": problems_payload,
             }
         )
 
