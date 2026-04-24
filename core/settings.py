@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "quizzes",
     "quiz_statistics.apps.QuizStatisticsConfig",
     "storages",
+    "exam",
 ]
 
 MIDDLEWARE = [
@@ -50,7 +51,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 CORS_ALLOW_ALL_ORIGINS = True
 
@@ -93,11 +94,12 @@ WSGI_APPLICATION = "core.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME"),
-        "USER": os.getenv("DB_USER"),
-        "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST"),
-        "PORT": os.getenv("DB_PORT", "5432"),
+        "NAME": os.getenv("DB_NAME") or os.getenv("POSTGRES_DB", "projectx"),
+        "USER": os.getenv("DB_USER") or os.getenv("POSTGRES_USER", "postgres"),
+        "PASSWORD": os.getenv("DB_PASSWORD")
+        or os.getenv("POSTGRES_PASSWORD", "postgres"),
+        "HOST": os.getenv("DB_HOST") or os.getenv("POSTGRES_HOST", "db"),
+        "PORT": os.getenv("DB_PORT") or os.getenv("POSTGRES_PORT", "5432"),
     }
 }
 
@@ -175,21 +177,32 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 GS_IAM_SIGN_BLOB = True
 GS_BUCKET_NAME = "bilimly-projectx-media"
 
-STORAGES = {
-    "default": {
-        "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
-        "OPTIONS": {
-            "bucket_name": GS_BUCKET_NAME,
-        },
-    },
-    "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-    },
-}
 
+if DEBUG:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+    MEDIA_URL = "/media/"
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.gcloud.GoogleCloudStorage",
+            "OPTIONS": {
+                "bucket_name": GS_BUCKET_NAME,
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+    MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/"
 
 # Media Files Settings
-MEDIA_URL = f"https://storage.googleapis.com/{GS_BUCKET_NAME}/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 # Default primary key field type

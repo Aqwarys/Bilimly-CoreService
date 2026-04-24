@@ -17,6 +17,7 @@ api = [
     path("lessons/", include("lessons.urls")),
     path("quizzes/", include("quizzes.urls")),
     path("statistics/", include("quiz_statistics.urls")),
+    path("", include("exam.urls")),
 ]
 
 urlpatterns = [
