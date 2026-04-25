@@ -178,12 +178,25 @@ class ExamBuildView(APIView):
             request_only=True,
             value=[
                 {
-                    "name": "Math",
+                    "name": "English",
                     "problems": [
-                        {"id": 1, "selected": [2]},
-                        {"id": 2, "selected": None},
+                        {"id": 3, "selected": [0]},
+                        {"id": 4, "selected": [0]},
                     ],
-                }
+                },
+                {
+                    "name": "Mathematics",
+                    "problems": [
+                        {"id": 1, "selected": [1]},
+                        {"id": 2, "selected": [0, 3]},
+                    ],
+                },
+                {
+                    "name": "TGO",
+                    "problems": [
+                        {"id": 6, "selected": [0]},
+                    ],
+                },
             ],
         )
     ],

@@ -28,8 +28,12 @@ class Subject(models.Model):
         return self.name
 
     def clean(self):
+        if self.duration_sec is None:
+            raise ValidationError({"duration_sec": "Duration is required."})
         if self.duration_sec <= 0:
             raise ValidationError({"duration_sec": "Duration must be greater than 0."})
+        if self.max_score is None:
+            raise ValidationError({"max_score": "Max score is required."})
         if self.max_score <= 0:
             raise ValidationError({"max_score": "Max score must be greater than 0."})
         super().clean()
