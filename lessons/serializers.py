@@ -3,6 +3,7 @@ Serializers module for lessons app.
 
 Contains serializers for Lesson and LessonImage models.
 """
+
 from rest_framework import serializers
 from .models import Lesson, LessonImage
 
@@ -15,20 +16,26 @@ class LessonCreateSerializer(serializers.ModelSerializer):
     """
 
     course_id = serializers.IntegerField(
-        write_only=True,
-        help_text="ID of the course this lesson belongs to."
+        write_only=True, help_text="ID of the course this lesson belongs to."
     )
 
     class Meta:
         model = Lesson
-        fields = ['id', 'course_id', 'is_draft']
-        read_only_fields = ['id', 'is_draft']
+        fields = [
+            "id",
+            "course_id",
+            "is_draft",
+            "auto_generate_quiz",
+            "generated_questions_count",
+        ]
+        read_only_fields = ["id", "is_draft"]
 
     def validate_course_id(self, value):
         """
         Validate that the course exists.
         """
         from courses.models import Course
+
         try:
             course = Course.objects.get(pk=value)
             return course
@@ -39,12 +46,16 @@ class LessonCreateSerializer(serializers.ModelSerializer):
         """
         Create a new draft lesson.
         """
-        course = validated_data.pop('course_id')
+        course = validated_data.pop("course_id")
+        auto_generate_quiz = validated_data.pop("auto_generate_quiz", False)
+        generated_questions_count = validated_data.pop("generated_questions_count", 3)
         lesson = Lesson(
             course=course,
             title=f"New Lesson {Lesson.objects.filter(course=course).count() + 1}",
             content={},
-            is_draft=True
+            is_draft=True,
+            auto_generate_quiz=auto_generate_quiz,
+            generated_questions_count=generated_questions_count,
         )
         lesson.save()  # This will trigger the model's save method which handles priority auto-increment
         return lesson
@@ -58,25 +69,27 @@ class LessonSerializer(serializers.ModelSerializer):
     """
 
     course_name = serializers.CharField(
-        source='course.name',
+        source="course.name",
         read_only=True,
-        help_text="Name of the course this lesson belongs to."
+        help_text="Name of the course this lesson belongs to.",
     )
 
     class Meta:
         model = Lesson
         fields = [
-            'id',
-            'course',
-            'course_name',
-            'title',
-            'content',
-            'image',
-            'is_draft',
-            'auto_test',
-            'priority'
+            "id",
+            "course",
+            "course_name",
+            "title",
+            "content",
+            "image",
+            "is_draft",
+            "auto_test",
+            "auto_generate_quiz",
+            "generated_questions_count",
+            "priority",
         ]
-        read_only_fields = ['id', 'course', 'course_name']
+        read_only_fields = ["id", "course", "course_name"]
 
 
 class LessonImageSerializer(serializers.ModelSerializer):
@@ -88,5 +101,5 @@ class LessonImageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LessonImage
-        fields = ['id', 'lesson', 'image']
-        read_only_fields = ['id']
+        fields = ["id", "lesson", "image"]
+        read_only_fields = ["id"]

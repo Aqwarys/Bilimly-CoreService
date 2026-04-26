@@ -3,6 +3,7 @@ Views module for lessons app.
 
 Contains API views for lesson management including creation, image upload, and publishing.
 """
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -13,7 +14,7 @@ from drf_spectacular.utils import (
     extend_schema,
     OpenApiExample,
     OpenApiResponse,
-    OpenApiParameter
+    OpenApiParameter,
 )
 from drf_spectacular.types import OpenApiTypes
 
@@ -33,11 +34,16 @@ class LessonCreateView(APIView):
 
     Creates an empty draft lesson for a course and returns its ID.
     """
+
     permission_classes = [IsAdminUserOnly]
 
     @extend_schema(
         summary="Create draft lesson",
-        description="Creates an empty draft lesson and returns its ID.",
+        description=(
+            "Creates an empty draft lesson and returns its ID. "
+            "Optional fields: auto_generate_quiz and generated_questions_count. "
+            "If enabled, the system will generate a quiz via external AI service."
+        ),
         request=LessonCreateSerializer,
         responses={
             201: OpenApiResponse(
@@ -47,12 +53,9 @@ class LessonCreateView(APIView):
                     OpenApiExample(
                         "Success Response",
                         summary="Draft lesson created",
-                        value={
-                            "id": 10,
-                            "is_draft": True
-                        }
+                        value={"id": 10, "is_draft": True},
                     )
-                ]
+                ],
             ),
             400: OpenApiResponse(
                 description="Bad Request",
@@ -60,12 +63,14 @@ class LessonCreateView(APIView):
                     OpenApiExample(
                         "Invalid Course ID",
                         summary="Course not found",
-                        value={"course_id": ["Invalid pk \"999\" - object does not exist."]}
+                        value={
+                            "course_id": ['Invalid pk "999" - object does not exist.']
+                        },
                     )
-                ]
+                ],
             ),
-            401: OpenApiResponse(description="Unauthorized")
-        }
+            401: OpenApiResponse(description="Unauthorized"),
+        },
     )
     def post(self, request):
         serializer = LessonCreateSerializer(data=request.data)
@@ -73,7 +78,7 @@ class LessonCreateView(APIView):
             lesson = serializer.save()
             return Response(
                 {"id": lesson.id, "is_draft": lesson.is_draft},
-                status=status.HTTP_201_CREATED
+                status=status.HTTP_201_CREATED,
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -85,6 +90,7 @@ class LessonImageView(APIView):
     Uploads an image file and attaches it to a lesson.
     Returns the image URL to be used in the TipTap editor.
     """
+
     permission_classes = [IsAdminUserOnly]
     parser_classes = [MultiPartParser, FormParser]
 
@@ -92,15 +98,15 @@ class LessonImageView(APIView):
         summary="Upload image for lesson editor",
         description="Uploads image and attaches it to lesson. Returns URL to be used inside TipTap editor.",
         request={
-            'multipart/form-data': {
-                'type': 'object',
-                'properties': {
-                    'image': {
-                        'type': 'string',
-                        'format': 'binary',
-                        'description': 'Image file to upload'
+            "multipart/form-data": {
+                "type": "object",
+                "properties": {
+                    "image": {
+                        "type": "string",
+                        "format": "binary",
+                        "description": "Image file to upload",
                     }
-                }
+                },
             }
         },
         responses={
@@ -114,10 +120,10 @@ class LessonImageView(APIView):
                         value={
                             "id": 5,
                             "image": "/media/lesson_images/image.png",
-                            "created_at": "2023-12-01T10:30:00Z"
-                        }
+                            "created_at": "2023-12-01T10:30:00Z",
+                        },
                     )
-                ]
+                ],
             ),
             400: OpenApiResponse(
                 description="Bad Request",
@@ -125,9 +131,9 @@ class LessonImageView(APIView):
                     OpenApiExample(
                         "Missing Image",
                         summary="No image file provided",
-                        value={"image": ["No file was submitted."]}
+                        value={"image": ["No file was submitted."]},
                     )
-                ]
+                ],
             ),
             404: OpenApiResponse(
                 description="Not Found",
@@ -135,12 +141,12 @@ class LessonImageView(APIView):
                     OpenApiExample(
                         "Lesson Not Found",
                         summary="Lesson does not exist",
-                        value={"detail": "Not found."}
+                        value={"detail": "Not found."},
                     )
-                ]
+                ],
             ),
-            401: OpenApiResponse(description="Unauthorized")
-        }
+            401: OpenApiResponse(description="Unauthorized"),
+        },
     )
     def post(self, request, lesson_id):
         lesson = get_object_or_404(Lesson, id=lesson_id)
@@ -153,8 +159,7 @@ class LessonImageView(APIView):
         if serializer.is_valid():
             lesson_image = serializer.save(lesson=lesson)
             return Response(
-                {"image_url": lesson_image.image.url},
-                status=status.HTTP_201_CREATED
+                {"image_url": lesson_image.image.url}, status=status.HTTP_201_CREATED
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -165,6 +170,7 @@ class LessonPublishView(APIView):
 
     Marks a lesson as published and removes any unused images.
     """
+
     permission_classes = [IsAdminUserOnly]
     serializer_class = None
 
@@ -179,12 +185,9 @@ class LessonPublishView(APIView):
                     OpenApiExample(
                         "Success Response",
                         summary="Lesson published",
-                        value={
-                            "status": "published",
-                            "deleted_images": 2
-                        }
+                        value={"status": "published", "deleted_images": 2},
                     )
-                ]
+                ],
             ),
             400: OpenApiResponse(
                 description="Bad Request",
@@ -192,9 +195,9 @@ class LessonPublishView(APIView):
                     OpenApiExample(
                         "No Content",
                         summary="Cannot publish lesson without content",
-                        value={"detail": "Cannot publish lesson without content."}
+                        value={"detail": "Cannot publish lesson without content."},
                     )
-                ]
+                ],
             ),
             404: OpenApiResponse(
                 description="Not Found",
@@ -202,12 +205,12 @@ class LessonPublishView(APIView):
                     OpenApiExample(
                         "Lesson Not Found",
                         summary="Lesson does not exist",
-                        value={"detail": "Not found."}
+                        value={"detail": "Not found."},
                     )
-                ]
+                ],
             ),
-            401: OpenApiResponse(description="Unauthorized")
-        }
+            401: OpenApiResponse(description="Unauthorized"),
+        },
     )
     def post(self, request, lesson_id):
         lesson = get_object_or_404(Lesson, id=lesson_id)
@@ -216,7 +219,7 @@ class LessonPublishView(APIView):
         if not lesson.content:
             return Response(
                 {"detail": "Cannot publish lesson without content."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Remove unused images
@@ -226,10 +229,10 @@ class LessonPublishView(APIView):
         lesson.is_draft = False
         lesson.save()
 
-        return Response({
-            "status": "published",
-            "deleted_images": deleted_count
-        }, status=status.HTTP_200_OK)
+        return Response(
+            {"status": "published", "deleted_images": deleted_count},
+            status=status.HTTP_200_OK,
+        )
 
 
 class LessonUpdateView(APIView):
@@ -239,12 +242,16 @@ class LessonUpdateView(APIView):
     Supports both full update (PUT) and partial update (PATCH).
     Only admin users can update lessons.
     """
+
     permission_classes = [IsAdminUserOnly]
     serializer_class = LessonSerializer
 
     @extend_schema(
         summary="Update lesson",
-        description="Updates lesson fields except course_id and id.",
+        description=(
+            "Updates lesson fields except course_id and id. "
+            "If auto_generate_quiz was enabled on creation, a quiz is generated automatically."
+        ),
         tags=["lessons"],
         request=LessonSerializer,
         responses={
@@ -262,10 +269,10 @@ class LessonUpdateView(APIView):
                             "title": "Updated lesson",
                             "content": {},
                             "is_draft": True,
-                            "priority": 2
-                        }
+                            "priority": 2,
+                        },
                     )
-                ]
+                ],
             ),
             400: OpenApiResponse(
                 description="Bad Request",
@@ -273,7 +280,7 @@ class LessonUpdateView(APIView):
                     OpenApiExample(
                         "Invalid Course ID",
                         summary="Course cannot be updated",
-                        value={"detail": "course_id cannot be updated"}
+                        value={"detail": "course_id cannot be updated"},
                     ),
                     OpenApiExample(
                         "Invalid Priority",
@@ -283,14 +290,14 @@ class LessonUpdateView(APIView):
                     OpenApiExample(
                         "No Content for Published Lesson",
                         summary="Cannot publish without content",
-                        value={"detail": "Cannot publish lesson without content."}
-                    )
-                ]
+                        value={"detail": "Cannot publish lesson without content."},
+                    ),
+                ],
             ),
             401: OpenApiResponse(description="Unauthorized"),
             403: OpenApiResponse(description="Forbidden"),
-            404: OpenApiResponse(description="Not Found")
-        }
+            404: OpenApiResponse(description="Not Found"),
+        },
     )
     def put(self, request, lesson_id):
         """Full update of lesson (replaces all fields)."""
@@ -305,52 +312,57 @@ class LessonUpdateView(APIView):
         lesson = get_object_or_404(Lesson, id=lesson_id)
 
         # Check if course_id is being updated (not allowed)
-        if 'course_id' in request.data or 'course' in request.data:
+        if "course_id" in request.data or "course" in request.data:
             return Response(
                 {"detail": "course_id cannot be updated"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Validate priority if provided
-        if 'priority' in request.data:
+        if "priority" in request.data:
             try:
-                priority = int(request.data['priority'])
+                priority = int(request.data["priority"])
                 if priority <= 0:
                     return Response(
                         {"priority": ["Priority must be a positive integer."]},
-                        status=status.HTTP_400_BAD_REQUEST
+                        status=status.HTTP_400_BAD_REQUEST,
                     )
             except (ValueError, TypeError):
                 return Response(
                     {"priority": ["Priority must be a positive integer."]},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
         serializer = LessonSerializer(lesson, data=request.data, partial=partial)
         if serializer.is_valid():
             # Check content validation for published lessons
-            if not serializer.validated_data.get('is_draft', lesson.is_draft):
-                content = serializer.validated_data.get('content', lesson.content)
+            if not serializer.validated_data.get("is_draft", lesson.is_draft):
+                content = serializer.validated_data.get("content", lesson.content)
                 if not content or content == {} or content == []:
                     return Response(
                         {"detail": "Cannot publish lesson without content."},
-                        status=status.HTTP_400_BAD_REQUEST
+                        status=status.HTTP_400_BAD_REQUEST,
                     )
 
             # Handle priority uniqueness validation manually to exclude current lesson
-            priority = serializer.validated_data.get('priority', lesson.priority)
+            priority = serializer.validated_data.get("priority", lesson.priority)
             course = lesson.course
 
             # Check if another lesson with the same priority exists in this course
-            existing_lesson = Lesson.objects.filter(
-                course=course,
-                priority=priority
-            ).exclude(id=lesson_id).first()
+            existing_lesson = (
+                Lesson.objects.filter(course=course, priority=priority)
+                .exclude(id=lesson_id)
+                .first()
+            )
 
             if existing_lesson:
                 return Response(
-                    {"priority": [f"Lesson with priority {priority} already exists in this course."]},
-                    status=status.HTTP_400_BAD_REQUEST
+                    {
+                        "priority": [
+                            f"Lesson with priority {priority} already exists in this course."
+                        ]
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             lesson = serializer.save()

@@ -4,6 +4,13 @@ Services module for lessons app.
 Contains business logic functions that can be reused across views.
 """
 
+import logging
+from typing import Any
+
+import requests
+from django.conf import settings
+from django.db import transaction
+
 
 def cleanup_unused_images(lesson):
     """
@@ -69,14 +76,14 @@ def _extract_image_urls_from_content(content):
     def traverse_node(node):
         if isinstance(node, dict):
             # Check if this is an image node
-            if node.get('type') == 'image' and 'attrs' in node:
-                src = node['attrs'].get('src')
+            if node.get("type") == "image" and "attrs" in node:
+                src = node["attrs"].get("src")
                 if src:
                     image_urls.add(src)
 
             # Recursively traverse children
             for key, value in node.items():
-                if key != 'attrs':  # Skip attrs as we've already processed it
+                if key != "attrs":  # Skip attrs as we've already processed it
                     traverse_node(value)
 
         elif isinstance(node, list):
@@ -85,10 +92,169 @@ def _extract_image_urls_from_content(content):
                 traverse_node(item)
 
     # Start traversal from the root content
-    if isinstance(content, dict) and 'content' in content:
-        traverse_node(content['content'])
+    if isinstance(content, dict) and "content" in content:
+        traverse_node(content["content"])
     elif isinstance(content, list):
         for item in content:
             traverse_node(item)
 
     return image_urls
+
+
+logger = logging.getLogger(__name__)
+
+
+def call_llm_service(payload: dict[str, Any]) -> dict[str, Any] | None:
+    base_url = getattr(settings, "LLM_SERVICE_URL", None)
+    if not base_url:
+        logger.warning("LLM_SERVICE_URL is not configured")
+        return None
+
+    endpoint = f"{base_url.rstrip('/')}/quizzes/questions/generate/1"
+
+    for attempt in range(2):
+        try:
+            response = requests.post(endpoint, json=payload, timeout=20)
+            if response.status_code >= 400:
+                logger.warning(
+                    "LLM service returned status=%s on attempt=%s",
+                    response.status_code,
+                    attempt + 1,
+                )
+                continue
+            data = response.json()
+            if not isinstance(data, dict):
+                logger.warning("LLM service returned non-object JSON")
+                return None
+            return data
+        except requests.RequestException:
+            logger.exception("LLM service request failed on attempt=%s", attempt + 1)
+        except ValueError:
+            logger.exception(
+                "LLM service returned invalid JSON on attempt=%s", attempt + 1
+            )
+
+    return None
+
+
+def validate_llm_question(data: dict[str, Any]) -> dict[str, Any] | None:
+    required_fields = {"type", "content", "options", "correct", "explanation"}
+    if not isinstance(data, dict) or not required_fields.issubset(data.keys()):
+        return None
+
+    q_type = data.get("type")
+    if q_type not in {"single", "multiple", "ordering"}:
+        return None
+
+    content = data.get("content")
+    if not isinstance(content, list):
+        return None
+
+    options = data.get("options")
+    if not isinstance(options, list) or len(options) == 0 or len(options) > 15:
+        return None
+    if not all(isinstance(option, str) for option in options):
+        return None
+
+    correct = data.get("correct")
+    if not isinstance(correct, list) or not all(isinstance(i, int) for i in correct):
+        return None
+
+    if any(i < 0 or i >= len(options) for i in correct):
+        return None
+
+    if q_type == "single" and len(correct) != 1:
+        return None
+    if q_type == "multiple" and len(correct) < 1:
+        return None
+    if q_type == "ordering" and correct != list(range(len(options))):
+        return None
+
+    explanation = data.get("explanation")
+    if (
+        not isinstance(explanation, str)
+        or len(explanation) == 0
+        or len(explanation) > 256
+    ):
+        return None
+
+    payload: dict[str, Any] = {
+        "type": q_type,
+        "content": content,
+        "options": options,
+        "correct": correct,
+        "explanation": explanation,
+    }
+
+    score = data.get("score", 1)
+    if isinstance(score, int) and 1 <= score <= 5:
+        payload["score"] = score
+
+    return payload
+
+
+@transaction.atomic
+def save_questions_to_quiz(quiz, questions: list[dict[str, Any]]) -> int:
+    from quizzes.models import Question
+
+    created_count = 0
+    for payload in questions:
+        question = Question(quiz=quiz, **payload)
+        question.full_clean()
+        question.save()
+        created_count += 1
+    return created_count
+
+
+def generate_quiz_from_lesson(lesson) -> None:
+    from quizzes.models import Quiz
+
+    quiz = Quiz(
+        lesson=lesson,
+        title=f"{lesson.title} Quiz {lesson.id}",
+        description=f"Auto-generated quiz for {lesson.title}",
+        is_free=True,
+    )
+    quiz.full_clean()
+    quiz.save()
+
+    payload = {
+        "lesson_text": lesson.content,
+        "questions_count": lesson.generated_questions_count or 3,
+        "title_hint": lesson.title,
+    }
+
+    response = call_llm_service(payload)
+    if not response:
+        logger.warning("LLM response missing; deleting quiz_id=%s", quiz.id)
+        quiz.delete()
+        return
+
+    questions = response.get("questions")
+    if not isinstance(questions, list):
+        logger.warning(
+            "LLM response has invalid questions payload; deleting quiz_id=%s", quiz.id
+        )
+        quiz.delete()
+        return
+
+    valid_questions: list[dict[str, Any]] = []
+    for idx, question_data in enumerate(questions, start=1):
+        cleaned = validate_llm_question(question_data)
+        if cleaned is None:
+            logger.warning(
+                "Skipping invalid LLM question index=%s for quiz_id=%s", idx, quiz.id
+            )
+            continue
+        valid_questions.append(cleaned)
+
+    if not valid_questions:
+        logger.warning("No valid questions generated; deleting quiz_id=%s", quiz.id)
+        quiz.delete()
+        return
+
+    try:
+        save_questions_to_quiz(quiz, valid_questions)
+    except Exception:
+        logger.exception("Failed saving questions for quiz_id=%s", quiz.id)
+        quiz.delete()
